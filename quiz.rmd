@@ -1,0 +1,85 @@
+```{r}
+library(tidyverse)
+```
+
+### Qustion 1&2
+```{r}
+# Question 1
+diamonddata <- diamonds
+diamonddata |>
+  nrow()
+# Question 2
+diamonddata |>
+  ncol()
+```
+
+Question 3
+```{r}
+ggplot(diamonddata, aes(carat, price)) +
+  geom_point()
+
+```
+
+Answer: B. As carat increases, price increases
+
+Question 4
+```{r}
+ggplot(diamonddata, aes(carat, price, color = cut)) +
+  geom_point()
+```
+
+Answer: C. As cut quality increases, price does not change (Wrong)
+
+Question 5
+```{r}
+ggplot(diamonddata, aes(carat, price, color = cut)) +
+  geom_point() +
+  facet_wrap(~color)
+```
+
+Answer: C. Creates a separate scatterplot for each "color"
+
+Question 6
+```{r}
+inventory <- read_csv("InventoryData.csv")
+head(inventory)
+```
+
+Answer: D. Character
+
+Question 7
+```{r}
+round(mean(inventory$`On Hand`, na.rm = TRUE), 1)
+```
+
+Answer: 100.5
+
+Question 8
+```{r}
+inventoryA <- inventory |>
+  filter(Supplier == 'A')
+
+inventoryA |>
+  nrow()
+```
+
+Answer: 3695
+
+Question 9
+```{r}
+inventoryA <- mutate(inventoryA, OnHandRatio = `On Hand` / `Annual Demand`)
+```
+
+Answer: B. Creates a new variable called "OnHandRatio"
+
+Question 10
+```{r}
+avg_cost <- inventoryA |>
+  group_by(`Item SKU`) |>
+  summarize(SKUAvgCost = mean(`Cost per Unit ($)`))
+
+avg_cost |>
+  filter(`Item SKU` == "011")
+```
+
+Answer: 12.3

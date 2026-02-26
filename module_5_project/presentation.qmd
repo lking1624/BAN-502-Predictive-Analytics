@@ -1,0 +1,232 @@
+---
+title: "Exploratory Analysis: Product Failure Dataset"
+subtitle: "BAN-502 Project Phase 1"
+author: "Logan King"
+format: revealjs
+theme: sky
+transition: slide
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## Exploratory Analysis 
+```{r setup}
+library(tidyverse)
+library(GGally)
+library(scales)
+library(gt)
+
+train_raw <- read_csv("train.csv") # for sanity check
+
+# Load data
+train <- read_csv("train.csv") |>
+  mutate(id = as.character(id)) |>
+  mutate(across(
+    c(
+      product_code
+    ),
+    as_factor
+  )) |>
+  mutate(across(c(attribute_0, attribute_1), parse_number)) |> 
+  mutate(failure = ifelse(failure == "Yes", 1, 0))
+
+```
+
+- 26,570 observations across 26 variables
+- Predictor Variable: `failure` (0 = no failure, 1 = failure)
+- Attribute 0 and 1 were changed to be numeric for better analysis
+
+::: {.columns}
+::: {.column width="40%"}
+```{r variable-summary}
+# Identify variable types
+numeric_vars <- train |>
+  select(where(is.numeric)) |>
+  names()
+
+categorical_vars <- train |>
+  select(where(is.factor), -failure) |>
+  names()
+
+# Summary table
+tibble(
+  `Variable Type` = c(
+    "Numeric Predictors",
+    "Categorical Predictors",
+    "Response Variable"
+  ),
+  Count = c(length(numeric_vars), length(categorical_vars), 1),
+  Examples = c(
+    paste(head(numeric_vars, 5), collapse = ", "),
+    paste(head(categorical_vars, 4), collapse = ", "),
+    "failure (0, 1)"
+  )
+) |>
+  gt() |>
+  tab_header(title = "Dataset Variable Summary") |>
+  tab_options(
+    heading.background.color = "#3fb1e3",
+    heading.title.font.size = px(18),
+    column_labels.background.color = "#e3f2fd",
+    table.background.color = "#f8f9fa",
+    table.width = pct(100),
+    table.font.size = px(14)
+  ) |>
+  tab_style(
+    style = list(
+      cell_text(color = "white", weight = "bold")
+    ),
+    locations = cells_title()
+  ) |>
+  tab_style(
+    style = cell_text(color = "#375a7f", weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  cols_label(
+    `Variable Type` = "Type",
+    Examples = "Sample Variables"
+  )
+```
+
+:::
+
+::: {.column width="60%"}
+```{r failure-distribution, fig.width=8, fig.height=5}
+# Calculate summary statistics
+failure_summary <- train |>
+  count(failure) |>
+  mutate(
+    pct = n / sum(n) * 100,
+    label = sprintf("%s\n%.1f%%", comma(n), pct)
+  )
+
+# Create plot
+ggplot(train, aes(x = failure)) +
+  geom_bar(fill = c("#3fb1e3", "#6ecff6"), alpha = 0.9, width = 0.6) +
+  geom_text(
+    data = failure_summary,
+    aes(y = n, label = label),
+    vjust = -0.5,
+    size = 5.5,
+    color = "#375a7f",
+    fontface = "bold",
+    lineheight = 0.9
+  ) +
+  labs(
+    title = "Failure Distribution",
+    x = "Failure Status",
+    y = "Count"
+  ) +
+  scale_x_discrete(labels = c("0" = "No Failure", "1" = "Failure")) +
+  scale_y_continuous(
+    limits = c(0, max(failure_summary$n) * 1.15),
+    expand = expansion(mult = c(0, 0.15)),
+    labels = comma
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(
+      color = "#375a7f",
+      size = 20,
+      face = "bold",
+      hjust = 0.5,
+      margin = margin(b = 5)
+    ),
+    plot.subtitle = element_text(
+      color = "#6c757d",
+      size = 13,
+      hjust = 0.5,
+      margin = margin(b = 15)
+    ),
+    axis.title = element_text(color = "#6c757d", size = 13, face = "bold"),
+    axis.text = element_text(color = "#495057", size = 11),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "#e3f2fd", linewidth = 0.5),
+    panel.grid.minor = element_blank(),
+    plot.background = element_rect(fill = "#f8f9fa", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(20, 20, 20, 20)
+  )
+```
+
+:::
+:::
+## Missing Data Analysis
+```{r}
+# Calculate missing data
+missing_summary <- train |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "missing_count"
+  ) |>
+  mutate(
+    missing_pct = missing_count / nrow(train) * 100,
+    has_missing = missing_count > 0
+  ) |>
+  filter(has_missing) |>
+  arrange(desc(missing_pct))
+
+rows_with_missing <- train |>
+  filter(if_any(everything(), is.na)) |>
+  nrow()
+
+pct_rows_affected <- (rows_with_missing / nrow(train)) * 100
+```
+
+::: {.columns}
+::: {.column width="60%"}
+**Key Findings:**
+
+- `r nrow(missing_summary)` variables with missing data
+- Maximum: `r round(max(missing_summary$missing_pct), 1)`%
+- **Cumulative impact:** `r comma(rows_with_missing)` rows (`r round(pct_rows_affected, 1)`%) affected
+- Row deletion would discard **significant** data so we will have to impute missing values
+- No missing values in response variable
+:::
+
+::: {.column width="40%"}
+```{r}
+#| fig-width: 5
+#| fig-height: 3.5
+
+missing_summary |>
+  ggplot(aes(x = reorder(variable, missing_pct), y = missing_pct)) +
+  geom_col(fill = "#3182bd", alpha = 0.8) +
+  geom_text(
+    aes(label = paste0(round(missing_pct, 2), "%")),
+    hjust = -0.1,
+    size = 3
+  ) +
+  coord_flip() +
+  labs(title = "Missing Data by Variable", x = NULL, y = "% Missing") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 12),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+```
+
+:::
+:::
+## Strong Predictors: Correlation of Variables
+
+```{r}
+train_loading_attr <- train |>
+  select(loading, starts_with("attribute_"), failure)
+
+train_measurement <- train |>
+  select(starts_with("measurement"), failure)
+
+ggcorr(train)
+```
+
+- There is not a very strong correlation between any of the predictors and the response variable, but there are some moderate correlations between loading and failure that could be explored further in Phase 2.
+
+## Phase 2 Recommendations
+- **Imputation Strategy**: Given the significant amount of missing data, I recommend using  mean imputation for numeric variables. This will allow us to retain as much data as possible while minimizing bias.
+- **Modeling Approach**: Start with a logistic regression model to establish a baseline, then explore more complex models like random forests or boosting  to capture potential nonlinearities and interactions in the data.

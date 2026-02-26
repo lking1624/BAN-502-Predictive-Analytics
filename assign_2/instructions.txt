@@ -1,0 +1,17 @@
+instructions
+
+Plan: Complete Random Forests Assignment in R
+Implement a 10-question Random Forests assignment in assign_forests.r covering data cleaning, EDA, model tuning, and evaluation using the tidymodels/ranger framework. The dataset is drug_data-2.csv (note the -2 suffix vs. the instructions' drug_data.csv).
+
+Steps
+Load libraries and read data — Load tidyverse, tidymodels, caret, gridExtra, vip, ranger. Read drug_data-2.csv, apply column names, recode CL0–CL6 to No/Yes, run the provided factor-cleaning pipeline, drop non-Nicotine drug columns to produce drug_clean.
+
+Q1–Q2: Missingness check and train/test split — Check for NAs in drug_clean. Split 70/30 with set.seed(1234), stratify on Nicotine via initial_split(). Report training row count.
+
+Q3–Q4: EDA visualizations (12 plots) — Create one plot per predictor vs. Nicotine (6 factor vars → bar charts, 6 numeric vars → boxplots/density). Arrange in 3 groups of 4 using grid.arrange(). Answer TRUE/FALSE for Age 18–24 and Impulsive score questions.
+
+Q5: Tune random forest — Build a rand_forest(mtry = tune(), min_n = tune(), trees = 100) with ranger engine + importance = "impurity". Use recipe → workflow. Create 5-fold CV (set.seed(123)), define grid_regular(mtry(range = c(2,8)), min_n(range = c(5,20)), levels = 10), run tune_grid(seed = 123). Plot autoplot() to visualize accuracy vs. parameters.
+
+Q6–Q8: Finalize model, variable importance, training accuracy — select_best("accuracy") → finalize_workflow() → fit() on training data. Use vip() for variable importance. Predict on training set, compute accuracy with confusionMatrix(). Compute naive accuracy (majority class proportion).
+
+Q9–Q10: Test set accuracy and overfitting assessment — Predict on test set, compute accuracy. Compare training vs. testing accuracy to assess overfitting.
